@@ -16,9 +16,9 @@ export const COURT_LIMITS = {
 
 // Per-difficulty speed escalation settings
 const DIFFICULTY_CONFIG = {
-  easy:   { serveSpeed: 3.3, aiSpeedMult: 1.00, rallyAccel: 0.01, maxSpeed: 8  },
-  medium: { serveSpeed: 3.7, aiSpeedMult: 1.00, rallyAccel: 0.03, maxSpeed: 11 },
-  pro:    { serveSpeed: 4.5, aiSpeedMult: 1.30, rallyAccel: 0.12, maxSpeed: 18 }
+  easy:   { serveSpeed: 3.2, aiSpeedMult: 0.95, rallyAccel: 0.015, maxSpeed: 8.5 },
+  medium: { serveSpeed: 3.6, aiSpeedMult: 1.00, rallyAccel: 0.030, maxSpeed: 11.5 },
+  pro:    { serveSpeed: 4.0, aiSpeedMult: 1.12, rallyAccel: 0.060, maxSpeed: 14.5 }
 };
 
 export class PingPongPhysics {
@@ -41,6 +41,8 @@ export class PingPongPhysics {
     this.lastBounceSide = null;
     this.bounceCountThisSide = 0;
     this.serveTimeoutActive = false;
+    this.aiErrorType = null;
+    this.aiDecidesToChaseOut = true;
   }
 
   resetBall() {
@@ -56,6 +58,8 @@ export class PingPongPhysics {
     this.activeRally = [];
     this.lastBounceSide = null;
     this.bounceCountThisSide = 0;
+    this.aiErrorType = null;
+    this.hasBouncedThisHit = false;
   }
 
   serveBall(hitter) {
@@ -141,8 +145,8 @@ export class PingPongPhysics {
 
     // 8. Collisions
     this.checkTableBounce();
-    // Disabled net collision to ensure the ball never gets stuck on the net
-    // this.checkNetCollision();
+    // Enable net collision so hitting the net commits a foul
+    this.checkNetCollision(dt);
     this.checkPaddleCollision(playerPaddle, 'player', dt);
     this.checkPaddleCollision(opponentPaddle, 'opponent', dt);
     this.checkOutOfBounds();
@@ -167,6 +171,16 @@ export class PingPongPhysics {
         // Determine which side bounced
         const side = this.ball.z > 0 ? 'player' : 'opponent';
 
+        // Check if the bounce is on the expected receiver's side
+        const expectedReceiver = this.lastHitter === 'player' ? 'opponent' : 'player';
+        if (side === expectedReceiver) {
+          this.hasBouncedThisHit = true;
+        } else if (this.lastHitter !== null) {
+          // Bounced on hitter's own side during play - point to opponent
+          this.awardPoint(expectedReceiver, `${this.lastHitter} bounced the ball on their own side.`);
+          return;
+        }
+
         // ── SIMPLIFIED BOUNCE SCORING RULES ──
         // A point is only lost if the ball bounces TWICE on the receiver's side
         // (i.e. the receiver failed to hit it before the second bounce)
@@ -190,19 +204,22 @@ export class PingPongPhysics {
     }
   }
 
-  checkNetCollision() {
+  checkNetCollision(dt) {
+    // Gracefully bypass net collision check for player hits to guarantee it never touches/snags the net
+    if (this.lastHitter === 'player') return;
+
     const netWidth = TABLE_WIDTH + 0.15;
-    const prevZ = this.ball.z - this.ball.vz * 0.016;
+    const prevZ = this.ball.z - this.ball.vz * dt;
     const crossedNet = (prevZ < 0 && this.ball.z >= 0) || (prevZ > 0 && this.ball.z <= 0);
 
     if (crossedNet && Math.abs(this.ball.x) <= netWidth / 2) {
       const t = -prevZ / (this.ball.z - prevZ);
-      const yAtNet = this.ball.y - this.ball.vy * 0.016 * (1 - t);
+      const yAtNet = this.ball.y - this.ball.vy * dt * (1 - t);
 
       if (yAtNet <= NET_HEIGHT) {
         this.triggerAudio('net');
         this.ball.z = prevZ;
-        this.ball.vz = -this.ball.vz * 0.2;
+        this.ball.vz = -this.ball.vz * 0.25; // bounce off net slightly
         this.ball.vy = Math.abs(this.ball.vy) * 0.2;
         this.ball.vx *= 0.5;
         this.ball.spinX *= 0.2;
@@ -215,6 +232,8 @@ export class PingPongPhysics {
     // Prevent hitting if the ball is already moving away from the hitter
     if (name === 'player' && this.ball.vz < 0) return;
     if (name === 'opponent' && this.ball.vz > 0) return;
+    // Bypass collision if the AI is set to miss the ball
+    if (name === 'opponent' && this.aiErrorType === 'miss') return;
 
     const paddleZ = paddle.z;
     const prevZ = this.ball.z - this.ball.vz * dt;
@@ -233,10 +252,25 @@ export class PingPongPhysics {
         // ── HIT ──
         this.lastHitter = name;
         this.rallyHitCount++;
+        this.hasBouncedThisHit = false;
         // Reset bounce tracking — receiver now has a fresh slate
         this.lastBounceSide = null;
         this.bounceCountThisSide = 0;
         this.triggerAudio('hit');
+
+        // Compute effective swing speed for the hit callback
+        let hitSpeed = 0;
+        if (name === 'player') {
+          const coordinateSwing = paddle.vz ? Math.abs(paddle.vz) : 0;
+          hitSpeed = Math.max(paddle.swingSpeed || 0, coordinateSwing * 3.5);
+          // Decide randomly (50% chance) if the AI will chase this ball if it goes out of bounds
+          this.aiDecidesToChaseOut = Math.random() > 0.50;
+        }
+
+        // Trigger external callback if registered
+        if (typeof this.onPaddleHit === 'function') {
+          this.onPaddleHit(name, hitSpeed);
+        }
 
         const cfg = DIFFICULTY_CONFIG[this.difficulty] || DIFFICULTY_CONFIG.medium;
         // Escalate speed every hit based on difficulty
@@ -244,6 +278,23 @@ export class PingPongPhysics {
         const rallyBonus = Math.min(maxRallyBonus, 1 + this.rallyHitCount * cfg.rallyAccel);
 
         if (name === 'player') {
+          // Roll for AI mistake on the upcoming return
+          const errorChance = this.difficulty === 'easy' ? 0.32 : (this.difficulty === 'medium' ? 0.15 : 0.04);
+          if (Math.random() < errorChance) {
+            const roll = Math.random();
+            if (roll < 0.35) {
+              this.aiErrorType = 'miss'; // complete miss
+            } else if (roll < 0.65) {
+              this.aiErrorType = 'net'; // hit into net
+            } else if (roll < 0.85) {
+              this.aiErrorType = 'wide'; // hit wide
+            } else {
+              this.aiErrorType = 'long'; // hit long
+            }
+          } else {
+            this.aiErrorType = null;
+          }
+
           // ── PLAYER HIT: always goes to opponent's court ──
           this.ball.z = paddleZ - BALL_RADIUS - 0.01;
           this.ball.y = Math.max(0.18, this.ball.y);
@@ -258,7 +309,20 @@ export class PingPongPhysics {
 
           // Forward speed based on difficulty — capped to prevent wide side shots
           const baseVz = cfg.serveSpeed * rallyBonus;
-          this.ball.vz = -Math.min(baseVz, cfg.maxSpeed * 0.80);
+          
+          // Combine accelerometer swingSpeed with physical coordinate velocity vz as a backup/booster
+          const coordinateSwing = paddle.vz ? Math.abs(paddle.vz) : 0;
+          const effectiveSwingSpeed = Math.max(
+            paddle.swingSpeed || 0,
+            coordinateSwing * 3.5
+          );
+
+          let swingMultiplier = 1.0;
+          if (effectiveSwingSpeed > 6.0) {
+            // Map swing speed (6 to 25) to a multiplier (1.0 to 1.5)
+            swingMultiplier = 1.0 + Math.min(0.5, (effectiveSwingSpeed - 6.0) * 0.026);
+          }
+          this.ball.vz = -Math.min(baseVz * swingMultiplier, cfg.maxSpeed * 0.95);
 
           // Lateral velocity calculated from target position
           const distZ = targetZ - this.ball.z;
@@ -268,36 +332,61 @@ export class PingPongPhysics {
           // Guarantee ball clears net dynamically — compute minimum vy needed
           const distToNet = Math.abs(this.ball.z);                     // ball is on player side (z>0)
           const tNet = distToNet / Math.max(0.1, Math.abs(this.ball.vz));
-          const clearance = NET_HEIGHT + 0.08;                          // 8cm above net top (generous clearance)
+          // Add extra safety buffer for topspin downward Magnus drag drop
+          const spinOffset = this.ball.spinX > 0 ? this.ball.spinX * 0.28 : 0;
+          const clearance = NET_HEIGHT + 0.16 + spinOffset;            // 16cm baseline clearance + topspin offset
           const minVy = (clearance - this.ball.y + 4.9 * tNet * tNet) / Math.max(0.01, tNet);
-          this.ball.vy = Math.min(5.5, Math.max(minVy, 1.8));
+          this.ball.vy = Math.min(7.5, Math.max(minVy, 1.8));          // raised clamp to 7.5 to allow safe clearance launch
 
-          this.ball.spinX = (paddle.vy || 0) * 0.8;
+          // Apply spin based on raw velocity or detected gyro spinType
+          if (paddle.spinType === 'topspin') {
+            this.ball.spinX = 0.8; // Topspin: heavy downward Magnus dip
+          } else if (paddle.spinType === 'backspin') {
+            this.ball.spinX = -0.8; // Backspin/Slice: high float
+          } else {
+            this.ball.spinX = (paddle.vy || 0) * 0.8;
+          }
           this.ball.spinY = (paddle.vx || 0) * 0.8;
 
         } else {
-          // ── AI HIT: always goes to player's court ──
+          // ── AI HIT: always goes to player's court (unless fouling) ──
           this.ball.z = paddleZ + BALL_RADIUS + 0.01;
           this.ball.y = Math.max(0.18, this.ball.y);
 
           let targetX;
-          // Constrain target to well inside table bounds to prevent side fouls
-          if (this.difficulty === 'pro') {
-            targetX = this.playerLastPos.x > 0.1
-              ? -(0.30 + Math.random() * 0.20)
-              :  (0.30 + Math.random() * 0.20);
-          } else if (this.difficulty === 'medium') {
-            targetX = (Math.random() - 0.5) * 0.50; // ±0.25 — stays well inside table
-          } else {
-            // easy: always aim very close to center
-            targetX = (Math.random() - 0.5) * 0.25;
-          }
-          targetX = Math.max(-0.55, Math.min(0.55, targetX));
+          let targetZ;
+          let targetClearance = 0.08; // default clearance above net
 
-          const targetZ = 0.60 + Math.random() * 0.55; // valid player side spot, well inside
+          if (this.aiErrorType === 'wide') {
+            // Hit wide (out of bounds side)
+            targetX = Math.random() > 0.5 ? 0.95 : -0.95;
+            targetZ = 0.60 + Math.random() * 0.55;
+          } else if (this.aiErrorType === 'long') {
+            // Hit long (out of bounds end)
+            targetX = (Math.random() - 0.5) * 0.50;
+            targetZ = 1.65 + Math.random() * 0.35;
+          } else if (this.aiErrorType === 'net') {
+            // Hit directly into net
+            targetX = (Math.random() - 0.5) * 0.50;
+            targetZ = 0.60 + Math.random() * 0.55;
+            targetClearance = -0.05; // below the top of net
+          } else {
+            // Normal hit
+            if (this.difficulty === 'pro') {
+              targetX = this.playerLastPos.x > 0.1
+                ? -(0.30 + Math.random() * 0.20)
+                :  (0.30 + Math.random() * 0.20);
+            } else if (this.difficulty === 'medium') {
+              targetX = (Math.random() - 0.5) * 0.50;
+            } else {
+              targetX = (Math.random() - 0.5) * 0.25;
+            }
+            targetZ = 0.60 + Math.random() * 0.55;
+          }
 
           // Forward speed — AI speed multiplier controls how fast it sends back
-          const baseVz = cfg.serveSpeed * cfg.aiSpeedMult * rallyBonus;
+          let baseVz = cfg.serveSpeed * cfg.aiSpeedMult * rallyBonus;
+          if (this.aiErrorType === 'long') baseVz *= 1.25;
           this.ball.vz = Math.min(baseVz, cfg.maxSpeed * 0.85);
 
           // Lateral velocity from target
@@ -305,12 +394,13 @@ export class PingPongPhysics {
           const flightTime = Math.abs(distZ) / Math.max(0.1, this.ball.vz);
           this.ball.vx = Math.max(-3.5, Math.min(3.5, (targetX - this.ball.x) / flightTime));
 
-          // Guarantee ball clears net dynamically
+          // Guarantee ball clears net dynamically (or hit net for net error)
           const distToNet = Math.abs(this.ball.z);                     // AI is on opponent side (z<0)
           const tNet = distToNet / Math.max(0.1, Math.abs(this.ball.vz));
-          const clearance = NET_HEIGHT + 0.08;                          // 8cm above net top
+          // Raised baseline target clearance to 16cm for AI normal shots, keeping error shots below net if targeted
+          const clearance = NET_HEIGHT + (targetClearance === 0.08 ? 0.16 : targetClearance);
           const minVy = (clearance - this.ball.y + 4.9 * tNet * tNet) / Math.max(0.01, tNet);
-          this.ball.vy = Math.min(5.5, Math.max(minVy, 1.8));
+          this.ball.vy = Math.min(7.5, Math.max(minVy, 1.8));
 
           if (this.difficulty === 'pro') {
             this.ball.spinX = 0.3 + Math.random() * 0.3;
@@ -342,33 +432,16 @@ export class PingPongPhysics {
         return;
       }
 
-      // The last person to hit it is responsible
-      // If the ball went past the opponent's back wall → player wins point
-      // If the ball went past the player's back wall  → opponent wins point
-      if (this.ball.z < -2.6) {
-        // Flew past AI's end — player scores
-        this.awardPoint('player', 'Ball passed opponent end.');
-      } else if (this.ball.z > 2.6) {
-        // Flew past player's end — opponent scores
-        this.awardPoint('opponent', 'Ball passed player end.');
-      } else if (this.ball.y < -0.6) {
-        // Ball dropped off table — whoever last hit it missed the table
-        const loser = this.lastHitter;
-        const winner = loser === 'player' ? 'opponent' : 'player';
-        // But only penalise if the ball was heading TO their side
-        // (prevents punishing a good shot that the opponent ran from)
-        const bouncedOpponentSide = this.bouncesThisRally.some(
-          b => b.side === (loser === 'player' ? 'opponent' : 'player')
-        );
-        this.awardPoint(
-          bouncedOpponentSide ? loser === 'player' ? 'player' : 'opponent' : winner,
-          'Ball left table.'
-        );
+      const loser = this.lastHitter;
+      const winner = loser === 'player' ? 'opponent' : 'player';
+
+      // Rule: if the ball did not bounce on the receiver's side after this hit,
+      // the hitter gets penalized (point awarded to the opponent)
+      if (!this.hasBouncedThisHit) {
+        this.awardPoint(winner, `${loser} hit the ball out without touching the table.`);
       } else {
-        // Off the side walls — last hitter's fault
-        const loser = this.lastHitter;
-        const winner = loser === 'player' ? 'opponent' : 'player';
-        this.awardPoint(winner, 'Ball went out of bounds sideways.');
+        // If it did bounce, the hitter wins the point since the receiver failed to return it
+        this.awardPoint(loser, `${winner} failed to return after table bounce.`);
       }
     }
   }
@@ -433,29 +506,44 @@ export class PingPongPhysics {
       gain.connect(ctx.destination);
 
       if (type === 'hit') {
-        osc.frequency.setValueAtTime(480, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(160, ctx.currentTime + 0.07);
-        gain.gain.setValueAtTime(0.3, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.07);
-        osc.start(); osc.stop(ctx.currentTime + 0.07);
+        // Realistic plastic ball hitting a racket (deeper wood/rubber click with hollow resonance)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1400, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(720, ctx.currentTime + 0.004); // fast transient slap
+        osc.frequency.exponentialRampToValueAtTime(520, ctx.currentTime + 0.045); // body resonance decay
+        
+        gain.gain.setValueAtTime(0.35, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.24, ctx.currentTime + 0.004);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.045);
+        osc.start(); 
+        osc.stop(ctx.currentTime + 0.045);
       } else if (type === 'bounce') {
-        osc.frequency.setValueAtTime(300, ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.055);
-        gain.gain.setValueAtTime(0.22, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.055);
-        osc.start(); osc.stop(ctx.currentTime + 0.055);
+        // Realistic plastic ball hitting a hard wood table (higher pitch pock/clack)
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1800, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1050, ctx.currentTime + 0.003); // sharp contact transient
+        osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.035);  // hollow plastic shell resonance
+        
+        gain.gain.setValueAtTime(0.32, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.22, ctx.currentTime + 0.003);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+        osc.start(); 
+        osc.stop(ctx.currentTime + 0.035);
       } else if (type === 'net') {
         osc.type = 'triangle';
-        osc.frequency.setValueAtTime(120, ctx.currentTime);
-        gain.gain.setValueAtTime(0.35, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.14);
-        osc.start(); osc.stop(ctx.currentTime + 0.14);
+        osc.frequency.setValueAtTime(140, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(70, ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.3, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        osc.start(); 
+        osc.stop(ctx.currentTime + 0.12);
       } else if (type === 'score') {
         osc.frequency.setValueAtTime(600, ctx.currentTime);
         osc.frequency.setValueAtTime(820, ctx.currentTime + 0.1);
         gain.gain.setValueAtTime(0.15, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-        osc.start(); osc.stop(ctx.currentTime + 0.3);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+        osc.start(); 
+        osc.stop(ctx.currentTime + 0.3);
       }
     } catch (e) {
       console.warn('Audio failed', e);

@@ -1091,3 +1091,176 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.18);
 }
+
+/* Gyroscope Phone Racket Controller Styles */
+.mobile-controller-screen {
+  width: 100vw;
+  height: 100vh;
+  background: radial-gradient(circle at center, #0b0f19 0%, #05060b 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  color: #f8fafc;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.controller-title {
+  font-family: var(--font-accent);
+  font-size: 2.2rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  background: linear-gradient(to right, #00f3ff, #ff007f);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.25rem;
+}
+
+.controller-subtitle {
+  font-size: 0.85rem;
+  color: #8892b0;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-accent);
+  letter-spacing: 1px;
+}
+
+.controller-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  background: rgba(13, 20, 35, 0.45);
+  border: 1px solid rgba(0, 243, 255, 0.15);
+  box-shadow: 0 0 30px rgba(0, 243, 255, 0.05);
+}
+
+.connection-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  font-family: var(--font-accent);
+  letter-spacing: 0.5px;
+}
+
+.connection-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.connection-badge .dot.connected {
+  background: #00f3ff;
+  box-shadow: 0 0 8px #00f3ff;
+}
+
+.connection-badge .dot.disconnected {
+  background: #ff007f;
+  box-shadow: 0 0 8px #ff007f;
+}
+
+.setup-view {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.setup-help {
+  font-size: 0.9rem;
+  color: #a8b2d1;
+  line-height: 1.6;
+}
+
+.active-view {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  width: 100%;
+}
+
+/* Racket SVG/CSS Visualizer styling */
+.racket-visualizer-container {
+  width: 150px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.15);
+  border-radius: 50%;
+  border: 1px dashed rgba(0,243,255,0.2);
+  perspective: 400px;
+}
+
+.racket-visualizer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-style: preserve-3d;
+}
+
+.racket-head {
+  width: 70px;
+  height: 80px;
+  background: linear-gradient(135deg, #ff007f 0%, #7f00ff 100%);
+  border-radius: 35px 35px 30px 30px;
+  box-shadow: 0 0 20px rgba(255,0,127,0.4);
+  border: 2px solid #ffffff;
+}
+
+.racket-handle {
+  width: 12px;
+  height: 45px;
+  background: #1f2937;
+  border-radius: 0 0 4px 4px;
+  border: 1px solid rgba(255,255,255,0.25);
+  margin-top: -2px;
+}
+
+.gyro-readings-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+}
+
+.reading-box {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.reading-lbl {
+  font-size: 0.65rem;
+  color: #8892b0;
+  text-transform: uppercase;
+}
+
+.reading-val {
+  font-size: 0.85rem;
+  font-weight: bold;
+  font-family: var(--font-accent);
+  color: #00f3ff;
+}
+
+.serve-btn {
+  box-shadow: 0 0 15px rgba(255,0,127,0.3);
+}
