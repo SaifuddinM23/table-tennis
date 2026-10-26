@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Users, Trophy, BrainCircuit, RotateCcw, Video, Eye, ArrowLeft, Send } from 'lucide-react';
+import { Play, Users, Trophy, BrainCircuit, RotateCcw, Video, Eye, ArrowLeft, Send, Copy, Check } from 'lucide-react';
 import { PingPongPhysics } from './physics/PingPongPhysics';
 import GameCanvas from './components/GameCanvas';
 import VoiceControls from './components/VoiceControls';
@@ -76,6 +76,7 @@ export default function App() {
   const [roomIdInput, setRoomIdInput] = useState('');
   const [activeRoomId, setActiveRoomId] = useState('');
   const [multiplayerStatus, setMultiplayerStatus] = useState('');
+  const [copiedCode, setCopiedCode] = useState(false);
   const [playersList, setPlayersList] = useState([]);
   const [role, setRole] = useState(null);
   const [matchResult, setMatchResult] = useState(null);
@@ -846,28 +847,58 @@ export default function App() {
               <p className="lobby-subtitle">Low-Latency WebRTC Sync</p>
             </div>
 
-            <div style={{ background: 'rgba(0,0,0,0.25)', padding: '1rem', borderRadius: '8px', fontSize: '0.85rem', color: '#00f3ff', border: '1px solid rgba(0, 243, 255, 0.15)', textAlign: 'center' }}>
+            <div style={{ background: 'rgba(0, 119, 182, 0.08)', padding: '0.75rem 1rem', borderRadius: '8px', fontSize: '0.85rem', color: '#0077b6', border: '1px solid rgba(0, 119, 182, 0.25)', textAlign: 'center', fontWeight: 600 }}>
               {multiplayerStatus}
             </div>
 
             {activeRoomId ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                <div style={{ textAlign: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#8892b0', textTransform: 'uppercase', letterSpacing: '1px' }}>Room Code:</span>
-                  <div style={{ fontSize: '2rem', fontWeight: 900, letterSpacing: '4px', color: 'white', fontFamily: 'Orbitron, sans-serif', textShadow: '0 0 10px rgba(255,255,255,0.2)', margin: '4px 0' }}>{activeRoomId}</div>
-                  <span style={{ fontSize: '0.75rem', color: '#8892b0' }}>Share this code with your friend to join.</span>
+                <div style={{ textAlign: 'center', background: 'rgba(15, 23, 42, 0.04)', padding: '1.25rem', borderRadius: '12px', border: '1px solid rgba(0, 119, 182, 0.2)' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 700 }}>ROOM CODE</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', margin: '6px 0' }}>
+                    <div style={{ fontSize: '2.5rem', fontWeight: 900, letterSpacing: '6px', color: '#0077b6', fontFamily: 'Orbitron, sans-serif' }}>
+                      {activeRoomId}
+                    </div>
+                    <button
+                      type="button"
+                      title="Copy Room Code"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(activeRoomId);
+                        setCopiedCode(true);
+                        setTimeout(() => setCopiedCode(false), 2000);
+                      }}
+                      style={{
+                        background: copiedCode ? 'rgba(42, 157, 143, 0.15)' : 'rgba(0, 119, 182, 0.1)',
+                        border: '1px solid ' + (copiedCode ? '#2a9d8f' : '#0077b6'),
+                        color: copiedCode ? '#2a9d8f' : '#0077b6',
+                        borderRadius: '8px',
+                        padding: '6px 10px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        transition: 'all 0.2s ease'
+                      }}
+                    >
+                      {copiedCode ? <Check size={14} /> : <Copy size={14} />}
+                      {copiedCode ? 'COPIED' : 'COPY'}
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Share this code with your friend to join.</span>
                 </div>
 
                 <div className="lobby-divider">PLAYERS ({playersList.length}/2)</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {playersList.map((p, idx) => (
-                    <div key={p.id} style={{ display: 'flex', justifyStyle: 'center', justifyContent: 'space-between', padding: '0.6rem 1rem', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '6px', fontSize: '0.9rem' }}>
-                      <span>{p.name} {p.id === mpManagerRef.current?.socket?.id ? '(You)' : ''}</span>
-                      <span style={{ color: p.role === 'host' ? '#00f3ff' : '#ff007f', fontWeight: 'bold', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px' }}>{p.role}</span>
+                    <div key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 1rem', background: 'rgba(255, 255, 255, 0.95)', border: '1px solid rgba(0, 0, 0, 0.08)', borderRadius: '8px', fontSize: '0.9rem', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+                      <span style={{ fontWeight: 600, color: '#1e293b' }}>{p.name} {p.id === mpManagerRef.current?.socket?.id ? '(You)' : ''}</span>
+                      <span style={{ color: p.role === 'host' ? '#0077b6' : '#e63946', fontWeight: 800, textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: '1px', padding: '2px 8px', borderRadius: '4px', background: p.role === 'host' ? 'rgba(0, 119, 182, 0.1)' : 'rgba(230, 57, 70, 0.1)' }}>{p.role}</span>
                     </div>
                   ))}
                   {playersList.length === 1 && (
-                    <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#8892b0', fontStyle: 'italic', padding: '10px' }}>Waiting for connection...</div>
+                    <div style={{ textAlign: 'center', fontSize: '0.8rem', color: '#64748b', fontStyle: 'italic', padding: '10px' }}>Waiting for opponent to connect...</div>
                   )}
                 </div>
               </div>
