@@ -913,13 +913,39 @@ export default function App() {
                 <form onSubmit={handleJoinRoom} className="room-input-box">
                   <input
                     type="text"
-                    placeholder="Enter 5-Letter Room Code"
+                    placeholder="ENTER 5-LETTER CODE"
                     value={roomIdInput}
-                    onChange={(e) => setRoomIdInput(e.target.value)}
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '8px', color: 'white', padding: '12px', outline: 'none', textAlign: 'center', fontFamily: 'Orbitron, sans-serif', textTransform: 'uppercase', letterSpacing: '2px' }}
+                    onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
+                    style={{
+                      flex: 1,
+                      background: '#ffffff',
+                      border: '2px solid rgba(0, 119, 182, 0.4)',
+                      borderRadius: '10px',
+                      color: '#0077b6',
+                      padding: '12px 16px',
+                      outline: 'none',
+                      textAlign: 'center',
+                      fontFamily: 'Orbitron, sans-serif',
+                      fontWeight: '800',
+                      fontSize: '1.1rem',
+                      textTransform: 'uppercase',
+                      letterSpacing: '4px',
+                      boxShadow: '0 2px 8px rgba(0, 119, 182, 0.08)'
+                    }}
                     maxLength={5}
                   />
-                  <button type="submit" className="btn-secondary">Join</button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    style={{
+                      padding: '0 22px',
+                      fontWeight: 700,
+                      letterSpacing: '1px',
+                      borderRadius: '10px'
+                    }}
+                  >
+                    JOIN
+                  </button>
                 </form>
               </div>
             )}

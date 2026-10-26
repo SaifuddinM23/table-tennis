@@ -1020,6 +1020,14 @@ body {
   flex: 1;
 }
 
+.room-input-box input::placeholder {
+  color: #94a3b8;
+  letter-spacing: 1px;
+  font-size: 0.85rem;
+  font-family: var(--font-main);
+  text-transform: uppercase;
+}
+
 .lobby-divider {
   display: flex;
   align-items: center;
