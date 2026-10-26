@@ -47,6 +47,7 @@ const distExists = fs.existsSync(distIndex) && process.env.NODE_ENV !== 'develop
 if (distExists) {
   console.log('Serving from dist/ folder');
   app.use(express.static(path.join(__dirname, 'dist')));
+  app.use('/table-tennis', express.static(path.join(__dirname, 'dist')));
   app.get(/(.*)/, (req, res) => {
     res.sendFile(distIndex);
   });

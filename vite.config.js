@@ -4,7 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  base: '/table-tennis/',
+  base: process.env.VITE_BASE_PATH || '/',
   server: {
     host: '127.0.0.1',
     port: 5175,

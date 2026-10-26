@@ -9,12 +9,13 @@ import Leaderboard from './components/Leaderboard';
 import { MultiplayerManager } from './components/MultiplayerManager';
 
 const LOCAL_SERVER_URL = 
-  window.location.hostname === 'localhost' || 
+  import.meta.env.VITE_SERVER_URL ||
+  (window.location.hostname === 'localhost' || 
   window.location.hostname.startsWith('192.168.') || 
   window.location.hostname.startsWith('10.') || 
   window.location.hostname.startsWith('172.')
     ? `${window.location.protocol}//${window.location.hostname}:${window.location.port || '3005'}`
-    : window.location.origin;
+    : window.location.origin);
 
 export default function App() {
   const [playerName, setPlayerName] = useState(() => localStorage.getItem('pingpong_player_name') || 'Player 1');
