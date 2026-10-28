@@ -916,6 +916,14 @@ export default function App() {
                     placeholder="ENTER 5-LETTER CODE"
                     value={roomIdInput}
                     onChange={(e) => setRoomIdInput(e.target.value.toUpperCase())}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#0077b6';
+                      e.target.style.boxShadow = '0 0 0 3px rgba(0, 119, 182, 0.2)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'rgba(0, 119, 182, 0.4)';
+                      e.target.style.boxShadow = '0 2px 8px rgba(0, 119, 182, 0.08)';
+                    }}
                     style={{
                       flex: 1,
                       background: '#ffffff',
@@ -930,7 +938,8 @@ export default function App() {
                       fontSize: '1.1rem',
                       textTransform: 'uppercase',
                       letterSpacing: '4px',
-                      boxShadow: '0 2px 8px rgba(0, 119, 182, 0.08)'
+                      boxShadow: '0 2px 8px rgba(0, 119, 182, 0.08)',
+                      transition: 'border-color 0.2s ease, box-shadow 0.2s ease'
                     }}
                     maxLength={5}
                   />
@@ -947,6 +956,9 @@ export default function App() {
                     JOIN
                   </button>
                 </form>
+                <span style={{ fontSize: '0.75rem', color: '#64748b', textAlign: 'center', display: 'block', marginTop: '-4px' }}>
+                  Ask the host for their 5-letter code to connect
+                </span>
               </div>
             )}
 
